@@ -106,7 +106,7 @@ class Script(scripts.Script):
         print("Starting vis")
         print(image)
 
-        img = HWC3(image['image'])
+        img = HWC3(image)
         if not ((image['mask'][:, :, 0]==0).all() or (image['mask'][:, :, 0]==255).all()):
             img = HWC3(image['mask'][:, :, 0])
         preprocessor = self.preprocessor[module]
