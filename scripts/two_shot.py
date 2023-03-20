@@ -162,7 +162,7 @@ class Script(scripts.Script):
                 enabled = gr.Checkbox(value=False, label="Enabled")
                 input_image = gr.Image(source='upload', type="numpy")
                 generated_image = gr.Image(label="Annotator result", visible=False)
-                
+
                 run_button = gr.Button(label="Run")
 
                 processor_res = gr.Slider(label="Annotator resolution", value=default_unit.processor_res, minimum=64, maximum=2048, interactive=False)
@@ -173,8 +173,9 @@ class Script(scripts.Script):
                 
                 run_button.click(fn=self.do_visualize, inputs=[input_image, module, processor_res, threshold_a, threshold_b], outputs=[generated_image])
 
+        unit = gr.State(default_unit)
                 
-        return enabled
+        return unit
 
     def denoised_callback(self, params: CFGDenoisedParams):
 
