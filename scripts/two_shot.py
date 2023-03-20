@@ -63,6 +63,8 @@ class Script(scripts.Script):
         self.end_at_step: int = 20
         self.filters: List[Filter] = []
         self.debug: bool = False
+        self.preprocessor = global_state.cn_preprocessor_modules
+        self.unloadable = global_state.cn_preprocessor_unloadable
 
     def title(self):
         return "Latent Couple extension"
