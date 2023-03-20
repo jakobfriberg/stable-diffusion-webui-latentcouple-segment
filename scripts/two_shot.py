@@ -7,11 +7,13 @@ from modules import devices
 
 import modules.scripts as scripts
 import gradio as gr
-# todo:
-from modules.script_callbacks import CFGDenoisedParams, on_cfg_denoised
 
+from modules.script_callbacks import CFGDenoisedParams, on_cfg_denoised
 from modules.processing import StableDiffusionProcessing
 
+from annotator.util import resize_image, HWC3
+from annotator.uniformer import UniformerDetector
+apply_uniformer = UniformerDetector()
 
 @dataclass
 class Division:
@@ -93,11 +95,20 @@ class Script(scripts.Script):
 
         return [Filter(division, position, weight) for division, position, weight in zip(divisions, positions, weights)]
 
-    def do_visualize(self, raw_divisions: str, raw_positions: str, raw_weights: str):
+    def do_visualize(self, input_image, detect_resolution, image_resolution):
 
-        self.filters = self.create_filters_from_ui_params(raw_divisions, raw_positions, raw_weights)
+        with torch.no_grad():
+            input_image = HWC3(input_image)
+            detected_map = apply_uniformer(resize_image(input_image, detect_resolution))
+            img = resize_image(input_image, image_resolution)
+            H, W, C = img.shape
+            print(H)
 
-        return [f.create_tensor(1, 128, 128).squeeze(dim=0).cpu().numpy() for f in self.filters]
+        return
+
+        #self.filters = self.create_filters_from_ui_params(raw_divisions, raw_positions, raw_weights)
+
+        #return [f.create_tensor(1, 128, 128).squeeze(dim=0).cpu().numpy() for f in self.filters]
 
     def do_apply(self, extra_generation_params: str):
         #
@@ -117,29 +128,18 @@ class Script(scripts.Script):
         id_part = "img2img" if is_img2img else "txt2img"
 
         with gr.Group():
-            with gr.Accordion("Latent Couple test", open=False):
+            with gr.Accordion("Segmentation", open=False):
                 enabled = gr.Checkbox(value=False, label="Enabled")
-                with gr.Row():
-                    divisions = gr.Textbox(label="Divisions", elem_id=f"cd_{id_part}_divisions", value="1:1,1:2,1:2")
-                    positions = gr.Textbox(label="Positions", elem_id=f"cd_{id_part}_positions", value="0:0,0:0,0:1")
-                with gr.Row():
-                    weights = gr.Textbox(label="Weights", elem_id=f"cd_{id_part}_weights", value="0.2,0.8,0.8")
-                    end_at_step = gr.Slider(minimum=0, maximum=150, step=1, label="end at this step", elem_id=f"cd_{id_part}_end_at_this_step", value=20)
+                input_image = gr.Image(source='upload', type="numpy")
+                run_button = gr.Button(label="Run")
 
-                visualize_button = gr.Button(value="Visualize")
-                visual_regions = gr.Gallery(label="Regions").style(grid=(4, 4, 4, 8), height="auto")
+                image_resolution = gr.Slider(label="Image Resolution", minimum=256, maximum=768, value=512, step=64)
+                detect_resolution = gr.Slider(label="Segmentation Resolution", minimum=128, maximum=1024, value=512, step=1)
 
-                visualize_button.click(fn=self.do_visualize, inputs=[divisions, positions, weights], outputs=[visual_regions])
+                run_button.click(fn=do_visualize, inputs=[input_image,detect_resolution,image_resolution], outputs=[])
 
-                extra_generation_params = gr.Textbox(label="Extra generation params")
-                apply_button = gr.Button(value="Apply")
-
-                apply_button.click(fn=self.do_apply, inputs=[extra_generation_params], outputs=[divisions, positions, weights, end_at_step])
-
-        self.infotext_fields = [
-            (extra_generation_params, "Latent Couple")
-        ]
-        return enabled, divisions, positions, weights, end_at_step
+                
+        return enabled
 
     def denoised_callback(self, params: CFGDenoisedParams):
 
