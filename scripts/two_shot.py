@@ -161,7 +161,7 @@ class Script(scripts.Script):
                 model = gr.Dropdown(list(global_state.cn_models.keys()), label=f"Model", value=default_unit.model)
 
                 enabled = gr.Checkbox(value=False, label="Enabled")
-                input_image = gr.Image(source='upload', type="numpy")
+                input_image = gr.Image(source='upload', mirror_webcam=False, type='numpy', tool='sketch')
                 generated_image = gr.Image(label="Annotator result", visible=False)
 
                 run_button = gr.Button(label="Run")
