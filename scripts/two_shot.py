@@ -117,7 +117,7 @@ class Script(scripts.Script):
         id_part = "img2img" if is_img2img else "txt2img"
 
         with gr.Group():
-            with gr.Accordion("Latent Couple", open=False):
+            with gr.Accordion("Latent Couple test", open=False):
                 enabled = gr.Checkbox(value=False, label="Enabled")
                 with gr.Row():
                     divisions = gr.Textbox(label="Divisions", elem_id=f"cd_{id_part}_divisions", value="1:1,1:2,1:2")
