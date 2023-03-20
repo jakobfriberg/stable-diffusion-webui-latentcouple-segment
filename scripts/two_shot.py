@@ -171,7 +171,7 @@ class Script(scripts.Script):
 
                 #run_button.click(fn=do_visualize, inputs=[input_image,detect_resolution,image_resolution], outputs=[])
                 
-                run_button.click(fn=self.do_visualize, inputs=[input_image, module, processor_res, threshold_a, threshold_b], outputs=[generated_image])
+                run_button.click(fn=self.do_visualize, inputs=[self, input_image, module, processor_res, threshold_a, threshold_b], outputs=[generated_image])
 
         unit = gr.State(default_unit)
 
