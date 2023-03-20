@@ -161,6 +161,8 @@ class Script(scripts.Script):
 
                 enabled = gr.Checkbox(value=False, label="Enabled")
                 input_image = gr.Image(source='upload', type="numpy")
+                generated_image = gr.Image(label="Annotator result", visible=False)
+                
                 run_button = gr.Button(label="Run")
 
                 processor_res = gr.Slider(label="Annotator resolution", value=default_unit.processor_res, minimum=64, maximum=2048, interactive=False)
