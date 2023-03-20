@@ -1,10 +1,12 @@
+from distutils import extension
 import numpy as np
 import cv2
-import os
 import torch
 from einops import rearrange
-from annotator.util import annotator_ckpts_path
 
+import os 
+from modules import devices
+from modules.paths import models_path
 
 class Network(torch.nn.Module):
     def __init__(self, model_path):
@@ -67,6 +69,7 @@ class Network(torch.nn.Module):
         )
 
         self.load_state_dict({strKey.replace('module', 'net'): tenWeight for strKey, tenWeight in torch.load(model_path).items()})
+    # end
 
     def forward(self, tenInput):
         tenInput = tenInput * 255.0
@@ -91,28 +94,41 @@ class Network(torch.nn.Module):
         tenScoreFiv = torch.nn.functional.interpolate(input=tenScoreFiv, size=(tenInput.shape[2], tenInput.shape[3]), mode='bilinear', align_corners=False)
 
         return self.netCombine(torch.cat([ tenScoreOne, tenScoreTwo, tenScoreThr, tenScoreFou, tenScoreFiv ], 1))
+    # end
+# end
 
+netNetwork = None
+remote_model_path = "https://huggingface.co/lllyasviel/ControlNet/resolve/main/annotator/ckpts/network-bsds500.pth"
+modeldir = os.path.join(models_path, "hed")
+old_modeldir = os.path.dirname(os.path.realpath(__file__))
 
-class HEDdetector:
-    def __init__(self):
-        remote_model_path = "https://huggingface.co/lllyasviel/ControlNet/resolve/main/annotator/ckpts/network-bsds500.pth"
-        modelpath = os.path.join(annotator_ckpts_path, "network-bsds500.pth")
-        if not os.path.exists(modelpath):
+def apply_hed(input_image):
+    global netNetwork
+    if netNetwork is None:
+        modelpath = os.path.join(modeldir, "network-bsds500.pth")
+        old_modelpath = os.path.join(old_modeldir, "network-bsds500.pth")
+        if os.path.exists(old_modelpath):
+            modelpath = old_modelpath
+        elif not os.path.exists(modelpath):
             from basicsr.utils.download_util import load_file_from_url
-            load_file_from_url(remote_model_path, model_dir=annotator_ckpts_path)
-        self.netNetwork = Network(modelpath).cuda().eval()
-
-    def __call__(self, input_image):
-        assert input_image.ndim == 3
-        input_image = input_image[:, :, ::-1].copy()
-        with torch.no_grad():
-            image_hed = torch.from_numpy(input_image).float().cuda()
-            image_hed = image_hed / 255.0
-            image_hed = rearrange(image_hed, 'h w c -> 1 c h w')
-            edge = self.netNetwork(image_hed)[0]
-            edge = (edge.cpu().numpy() * 255.0).clip(0, 255).astype(np.uint8)
-            return edge[0]
-
+            load_file_from_url(remote_model_path, model_dir=modeldir)
+        netNetwork = Network(modelpath)
+    netNetwork.to(devices.get_device_for("controlnet")).eval()
+        
+    assert input_image.ndim == 3
+    input_image = input_image[:, :, ::-1].copy()
+    with torch.no_grad():
+        image_hed = torch.from_numpy(input_image).float().to(devices.get_device_for("controlnet"))
+        image_hed = image_hed / 255.0
+        image_hed = rearrange(image_hed, 'h w c -> 1 c h w')
+        edge = netNetwork(image_hed)[0]
+        edge = (edge.cpu().numpy() * 255.0).clip(0, 255).astype(np.uint8)
+        return edge[0]
+    
+def unload_hed_model():
+    global netNetwork
+    if netNetwork is not None:
+        netNetwork.cpu()
 
 def nms(x, t, s):
     x = cv2.GaussianBlur(x.astype(np.float32), (0, 0), s)

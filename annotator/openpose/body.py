@@ -1,3 +1,4 @@
+import os
 import cv2
 import numpy as np
 import math
@@ -10,18 +11,20 @@ from torchvision import transforms
 
 from . import util
 from .model import bodypose_model
+from modules import devices
+from modules.paths import models_path
 
 class Body(object):
     def __init__(self, model_path):
         self.model = bodypose_model()
-        if torch.cuda.is_available():
-            self.model = self.model.cuda()
-            print('cuda')
+        self.model = self.model.to(devices.get_device_for("controlnet"))
         model_dict = util.transfer(self.model, torch.load(model_path))
         self.model.load_state_dict(model_dict)
         self.model.eval()
 
     def __call__(self, oriImg):
+        self.model = self.model.to(devices.get_device_for("controlnet"))
+        
         # scale_search = [0.5, 1.0, 1.5, 2.0]
         scale_search = [0.5]
         boxsize = 368
@@ -41,8 +44,7 @@ class Body(object):
             im = np.ascontiguousarray(im)
 
             data = torch.from_numpy(im).float()
-            if torch.cuda.is_available():
-                data = data.cuda()
+            data = data.to(devices.get_device_for("controlnet"))
             # data = data.permute([2, 0, 1]).unsqueeze(0).float()
             with torch.no_grad():
                 Mconv7_stage6_L1, Mconv7_stage6_L2 = self.model(data)
@@ -209,7 +211,7 @@ class Body(object):
         return candidate, subset
 
 if __name__ == "__main__":
-    body_estimation = Body('../model/body_pose_model.pth')
+    body_estimation = Body(os.path.join(models_path, "openpose", "body_pose_model.pth"))
 
     test_image = '../images/ski.jpg'
     oriImg = cv2.imread(test_image)  # B,G,R order

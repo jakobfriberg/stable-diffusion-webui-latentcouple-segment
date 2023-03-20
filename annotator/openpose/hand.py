@@ -11,18 +11,20 @@ from skimage.measure import label
 
 from .model import handpose_model
 from . import util
+from modules import devices
+from modules.paths import models_path
 
 class Hand(object):
     def __init__(self, model_path):
         self.model = handpose_model()
-        if torch.cuda.is_available():
-            self.model = self.model.cuda()
-            print('cuda')
+        self.model = self.model.to(devices.get_device_for("controlnet"))
         model_dict = util.transfer(self.model, torch.load(model_path))
         self.model.load_state_dict(model_dict)
         self.model.eval()
 
     def __call__(self, oriImg):
+        self.model = self.model.to(devices.get_device_for("controlnet"))
+        
         scale_search = [0.5, 1.0, 1.5, 2.0]
         # scale_search = [0.5]
         boxsize = 368
@@ -41,8 +43,7 @@ class Hand(object):
             im = np.ascontiguousarray(im)
 
             data = torch.from_numpy(im).float()
-            if torch.cuda.is_available():
-                data = data.cuda()
+            data = data.to(devices.get_device_for("controlnet"))
             # data = data.permute([2, 0, 1]).unsqueeze(0).float()
             with torch.no_grad():
                 output = self.model(data).cpu().numpy()
@@ -75,7 +76,7 @@ class Hand(object):
         return np.array(all_peaks)
 
 if __name__ == "__main__":
-    hand_estimation = Hand('../model/hand_pose_model.pth')
+    hand_estimation = Hand(os.path.join(models_path, "openpose", "hand_pose_model.pth"))
 
     # test_image = '../images/hand.jpg'
     test_image = '../images/hand.jpg'

@@ -11,9 +11,12 @@ import gradio as gr
 from modules.script_callbacks import CFGDenoisedParams, on_cfg_denoised
 from modules.processing import StableDiffusionProcessing
 
+from scripts import external_code, global_state
+importlib.reload(global_state)
+importlib.reload(external_code)
+
 from annotator.util import resize_image, HWC3
-from annotator.uniformer import UniformerDetector
-apply_uniformer = UniformerDetector()
+
 
 @dataclass
 class Division:
@@ -95,16 +98,27 @@ class Script(scripts.Script):
 
         return [Filter(division, position, weight) for division, position, weight in zip(divisions, positions, weights)]
 
-    def do_visualize(self, input_image, detect_resolution, image_resolution):
+    def do_visualize(self, image, module, pres, pthr_a, pthr_b):
 
-        with torch.no_grad():
-            input_image = HWC3(input_image)
-            detected_map = apply_uniformer(resize_image(input_image, detect_resolution))
-            img = resize_image(input_image, image_resolution)
-            H, W, C = img.shape
-            print(H)
+        print("Starting vis")
 
-        return
+        img = HWC3(image['image'])
+        if not ((image['mask'][:, :, 0]==0).all() or (image['mask'][:, :, 0]==255).all()):
+            img = HWC3(image['mask'][:, :, 0])
+        preprocessor = self.preprocessor[module]
+        result = None
+        if pres > 64:
+            result, is_image = preprocessor(img, res=pres, thr_a=pthr_a, thr_b=pthr_b)
+        else:
+            result, is_image = preprocessor(img)
+        
+        if is_image:
+            return gr.update(value=result, visible=True, interactive=False)
+        
+        if is_image:
+                return gr.update(value=result, visible=True, interactive=False)
+        
+        print("Done with vis")
 
         #self.filters = self.create_filters_from_ui_params(raw_divisions, raw_positions, raw_weights)
 
@@ -124,19 +138,35 @@ class Script(scripts.Script):
 
         return raw_params.get('divisions', '1:1,1:2,1:2'), raw_params.get('positions', '0:0,0:0,0:1'), raw_params.get('weights', '0.2,0.8,0.8'), int(raw_params.get('step', '20'))
 
+    def get_default_ui_unit(self):
+        return external_code.ControlNetUnit(
+            enabled=False,
+            module="none",
+            model="None",
+            guess_mode=False,
+        )
+
     def ui(self, is_img2img):
         id_part = "img2img" if is_img2img else "txt2img"
 
+        default_unit = self.get_default_ui_unit()
+
         with gr.Group():
             with gr.Accordion("Segmentation", open=False):
+                module = gr.Dropdown(list(self.preprocessor.keys()), label=f"Preprocessor", value=default_unit.module)
+                model = gr.Dropdown(list(global_state.cn_models.keys()), label=f"Model", value=default_unit.model)
+
                 enabled = gr.Checkbox(value=False, label="Enabled")
                 input_image = gr.Image(source='upload', type="numpy")
                 run_button = gr.Button(label="Run")
 
-                image_resolution = gr.Slider(label="Image Resolution", minimum=256, maximum=768, value=512, step=64)
-                detect_resolution = gr.Slider(label="Segmentation Resolution", minimum=128, maximum=1024, value=512, step=1)
+                processor_res = gr.Slider(label="Annotator resolution", value=default_unit.processor_res, minimum=64, maximum=2048, interactive=False)
+                threshold_a =  gr.Slider(label="Threshold A", value=default_unit.threshold_a, minimum=64, maximum=1024, interactive=False)
+                threshold_b =  gr.Slider(label="Threshold B", value=default_unit.threshold_b, minimum=64, maximum=1024, interactive=False)
 
-                run_button.click(fn=do_visualize, inputs=[input_image,detect_resolution,image_resolution], outputs=[])
+                #run_button.click(fn=do_visualize, inputs=[input_image,detect_resolution,image_resolution], outputs=[])
+                
+                run_button.click(fn=do_visualize, inputs=[input_image, module, processor_res, threshold_a, threshold_b], outputs=[generated_image])
 
                 
         return enabled
